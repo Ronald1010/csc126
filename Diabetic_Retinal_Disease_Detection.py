@@ -3,6 +3,7 @@ from PIL import Image
 from inference_sdk import InferenceHTTPClient
 import tempfile
 import requests
+from typing import Iterable
 
 # Define the inference client
 CLIENT = InferenceHTTPClient(
