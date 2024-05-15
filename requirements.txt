@@ -1,2 +1,2 @@
 streamlit==1.0.0
-inference_sdk==<version>
+inference_sdk==0.9.23  # Replace '0.9.23' with the actual version you want to use
