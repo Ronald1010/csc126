@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 streamlit==1.0.0
 click==7.1.2
 protobuf==3.20.3
 altair==4.2.2
 inference_sdk>=0.9.0,<1.0.0
+=======
+streamlit==1.0.0
+click==7.1.2
+protobuf==3.20.3
+altair==4.2.2
+>>>>>>> 3155508fa94a1fc6ae13cfa3bfb25b05df3258e1
