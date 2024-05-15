@@ -4,7 +4,7 @@ from inference_sdk import InferenceHTTPClient
 import tempfile
 import requests
 from collections.abc import Iterable
-import cv2
+
 
 # Define the inference client
 CLIENT = InferenceHTTPClient(
