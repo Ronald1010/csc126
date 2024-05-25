@@ -1,135 +1,142 @@
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw
 from inference_sdk import InferenceHTTPClient
 import tempfile
-import requests
-from collections.abc import Iterable
 
-
-# Define the inference client
+# Define the inference client details (replace with your actual API key and model ID)
 CLIENT = InferenceHTTPClient(
     api_url="https://classify.roboflow.com",
-    api_key="VsxreoZsgrCDLK4xweXv"
+    api_key="VsxreoZsgrCDLK4xweXv"  # Replace with your Roboflow API key
 )
 
-MODEL_ID = "diabetic-retinopathy-mnthr/2"
+MODEL_ID = "theeyedismodel.v2/1"  # Replace with your model ID
 
-def infer_image(image):
-    # Save the image to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-        image.save(temp_file, format='JPEG')
-        temp_file_path = temp_file.name
-    
-    # Use the inference client to send the image
-    result = CLIENT.infer(temp_file_path, model_id=MODEL_ID)
-    return result
+def classify_image(image):
+    """Classifies an image using the Roboflow inference API.
 
-# Define descriptions and advice for each class
-CLASS_DESCRIPTIONS = {
-    "Proliferate_DR": {
-        "description": "Proliferative diabetic retinopathy detected.",
-        "advice": "Urgently consult with an eye specialist for prompt treatment to prevent vision loss."
-    },
-    "Severe": {
-        "description": "Severe diabetic retinopathy detected.",
-        "advice": "Seek immediate medical attention from an eye specialist for appropriate treatment."
-    },
-    "Unlabeled": {
-        "description": "Unlabeled.",
-        "advice": "This class is not labeled. Please consult with a healthcare professional for further evaluation."
-    },
-    "mild": {
-        "description": "Mild diabetic retinopathy detected.",
-        "advice": "Control blood sugar levels and maintain a healthy lifestyle. Regular eye check-ups are recommended."
-    },
-    "moderate": {
-        "description": "Moderate diabetic retinopathy detected.",
-        "advice": "Consult with an eye specialist for further evaluation and treatment options."
-    },
-    "no_DR": {
-        "description": "No signs of diabetic retinopathy detected.",
-        "advice": "Continue regular eye check-ups as advised by your healthcare provider."
-    }
-}
+    Args:
+        image: A PIL Image object.
 
-# Streamlit app
-st.set_page_config(page_title="Diabetic Retinal Disease Detection", page_icon="👁️", layout="centered")
-st.title("👁️ Diabetic Retinal Disease Detection App")
-
-# Apply CSS styles
-st.markdown(
+    Returns:
+        A dictionary containing the classification results,
+        or None if an error occurs.
     """
-    <style>
-    .stApp {
-        background-color: #f0f2f6;
-        padding: 1rem;
-    }
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        padding: 12px 20px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-    .stButton>button:hover {
-        background-color: #45a049;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+    try:
+        # Save the image to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+            image.save(temp_file, format="JPEG")
+            temp_file_path = temp_file.name
 
-if uploaded_file is not None:
-    st.subheader("Uploaded Image")
-    image = Image.open(uploaded_file)
-    st.image(image, caption='Uploaded Image', use_column_width=True)
+        # Use the inference client to classify the image
+        result = CLIENT.infer(temp_file_path, model_id=MODEL_ID)
+        return result
 
-    # Displaying preloader while detecting diabetic retinal disease
-    with st.spinner("Detecting diabetic retinal disease..."):
-        result = infer_image(image)
+    except Exception as e:
+        print(f"Error during classification: {e}")
+        return None
 
-    # Display results after preloader
-    if result and "predictions" in result:
-        st.subheader("Detection Result")
-        predictions = result["predictions"]
-        max_prediction = max(predictions.items(), key=lambda x: x[1]['confidence'])
-        class_name, prediction = max_prediction
-        confidence = prediction['confidence']
-        
-        # Set background color based on predicted class
-        if class_name == "no_DR":
-            background_color = "#57BB8A"
-        elif class_name == "mild":
-            background_color = "#F8D347"
-        else:
-            background_color = "#F24236"
-        
-        # Apply background color
-        st.markdown(
-            f"""
-            <div style='background-color: {background_color}; padding: 1rem; border-radius: 0.5rem;'>
-                <h3 style='color: white;'>Detection Result</h3>
-                <p style='color: white;'>Predicted Class: {class_name.capitalize()} ({confidence:.2%})</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
+def draw_annotations(image, prediction):
+    """Draws annotations on the image if bounding boxes are available.
+
+    Args:
+        image: A PIL Image object.
+        prediction: A prediction from the model.
+
+    Returns:
+        An annotated PIL Image object.
+    """
+    draw = ImageDraw.Draw(image)
+    if 'bbox' in prediction:
+        box = prediction['bbox']
+        class_name = prediction['class']
+        draw.rectangle(
+            [box['x'], box['y'], box['x'] + box['width'], box['y'] + box['height']],
+            outline="red",
+            width=3
         )
-        
-        description = CLASS_DESCRIPTIONS.get(class_name, {}).get("description", "")
-        advice = CLASS_DESCRIPTIONS.get(class_name, {}).get("advice", "")
+        draw.text((box['x'], box['y'] - 10), class_name, fill="red")
+    return image
 
-        # Display description and advice based on predicted class
-        st.write(description)
-        st.write(f"**Advice:** {advice}")
+def generate_explanation(class_name):
+    """Generates an explanation based on the class name.
 
-        # Display annotated image
-        annotated_image_url = result.get("annotated_image")
-        if annotated_image_url:
-            annotated_image = Image.open(requests.get(annotated_image_url, stream=True).raw)
-            st.subheader("Annotated Image")
-            st.image(annotated_image, caption='Annotated Image', use_column_width=True)
-    else:
-        st.markdown('<p style="color: green; font-weight: bold;">No signs of diabetic retinal disease detected.</p>', unsafe_allow_html=True)
+    Args:
+        class_name: The name of the classified class.
+
+    Returns:
+        A string containing an explanation of the class.
+    """
+    explanations = {
+        "glaucoma": "The retina shows signs of glaucoma, a condition characterized by increased intraocular pressure leading to optic nerve damage.",
+        "cataract": "The image indicates the presence of cataracts, where the lens becomes cloudy, leading to a decrease in vision.",
+        "diabetic_retinopathy": "The image suggests diabetic retinopathy, a diabetes complication that affects the eyes by damaging the blood vessels of the retina.",
+        "macular_degeneration": "Signs of macular degeneration are evident, which is a condition that results in the deterioration of the central portion of the retina, affecting central vision.",
+        "healthy": "The retina appears healthy with no obvious signs of disease.",
+        # Additional variations
+        "Diabetic Retinopaty": "The image suggests diabetic retinopathy, a diabetes complication that affects the eyes by damaging the blood vessels of the retina."
+    }
+    return explanations.get(class_name, "No explanation available for this class.")
+
+def main():
+    """The main function of the script."""
+
+    # Set page title and favicon
+    st.set_page_config(page_title="Eye Disease Classification", page_icon="👁️")
+
+    # Define app title and subtitle with emojis
+    st.title("👁️ Eye Disease Classification")
+    st.write(
+        "Welcome to our Eye Disease Classification tool. Upload an image of the eye to get started!"
+    )
+
+    # Add space for better layout
+    st.write("")
+
+    # Add file uploader
+    uploaded_file = st.file_uploader("Upload Eye Image...", type=["jpg", "jpeg", "png"])
+
+    if uploaded_file is not None:
+        # Display uploaded image
+        st.subheader("Uploaded Eye Image")
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Uploaded Eye Image", use_column_width=True)
+
+        # Classify the image
+        with st.spinner("Classifying eye image..."):
+            result = classify_image(image.copy())
+
+        # Display results after preloader
+        if result:
+            # Extract and display the highest confidence prediction
+            if "predictions" in result and result["predictions"]:
+                predictions = result["predictions"]
+                highest_confidence_prediction = max(predictions, key=lambda p: p["confidence"])
+                
+                st.subheader("Classification Result:")
+                
+                # Draw annotations on the image if bounding boxes are available
+                annotated_image = draw_annotations(image.copy(), highest_confidence_prediction)
+                st.image(annotated_image, caption="Annotated Eye Image", use_column_width=True)
+                
+                # Display the highest confidence prediction
+                class_name = highest_confidence_prediction["class"]
+                confidence = highest_confidence_prediction["confidence"]
+                confidence_percentage = confidence * 100
+                st.write(f"Detected Disease: {class_name}")
+                st.write(f"Confidence: {confidence_percentage:.2f}%")
+                
+                # Generate and display explanation based on the result
+                explanation = generate_explanation(class_name)
+                st.subheader(f"Discussion of {class_name}:")
+                st.write(explanation)
+            else:
+                st.write("No classification results found in the response.")
+        else:
+            st.markdown(
+                '<p style="color: orange; font-weight: bold;">An error occurred during classification. Please check your API key, model ID, or image format.</p>',
+                unsafe_allow_html=True,
+            )
+
+if __name__ == "__main__":
+    main()
