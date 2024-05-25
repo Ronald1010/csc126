@@ -2,6 +2,7 @@ import streamlit as st
 from PIL import Image, ImageDraw
 from inference_sdk import InferenceHTTPClient
 import tempfile
+import cv2
 
 # Define the inference client details (replace with your actual API key and model ID)
 CLIENT = InferenceHTTPClient(
